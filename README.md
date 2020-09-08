@@ -1,5 +1,14 @@
 # In-memory search index
 
+![](illustration.png)
+
+## Features
+
+- Indexation using simple tree
+- Search by beginning of string
+- Exact search
+- Suitable for non-long strings
+
 ## How to use
 
 ```go
