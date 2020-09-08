@@ -12,29 +12,44 @@
 ## How to use
 
 ```go
-import "github.com/twelvedata/searchindex"
+package main
 
-// Values for indexation
-searchList := SearchList{
-    SearchItem{
-        Key: "AAPL", 
-        Data: &SymbolInfo{Symbol: "AAPL", Exchange: "NASDAQ", Instrument: "Apple Inc"},
-    },
-    SearchItem{
-        Key: "AMZN", 
-        Data: &SymbolInfo{Symbol: "AMZN", Exchange: "NASDAQ", Instrument: "Amazon.com Inc"},
-    },
+import (
+    "fmt"
+    "github.com/twelvedata/searchindex"
+)
+
+type SymbolInfo struct {
+    Symbol     string
+    Exchange   string
+    Instrument string
 }
 
-// Fill index
-searchIndex := NewSearchIndex(searchList, 10, nil, nil, true, nil)
+func main() {
+    // Values for indexation
+    searchList := searchindex.SearchList{
+        &searchindex.SearchItem{
+            Key: "AAPL",
+            Data: &SymbolInfo{Symbol: "AAPL", Exchange: "NASDAQ", Instrument: "Apple Inc"},
+        },
+        &searchindex.SearchItem{
+            Key: "AMZN",
+            Data: &SymbolInfo{Symbol: "AMZN", Exchange: "NASDAQ", Instrument: "Amazon.com Inc"},
+        },
+    }
 
-// Search
-result := searchIndex.Search(SearchParams{
-    Text: "aa", 
-    OutputSize: 10, 
-    Matching: searchindex.Beginning,
-})
+    // Fill index
+    searchIndex := searchindex.NewSearchIndex(searchList, 10, nil, nil, true, nil)
+
+    // Search
+    result := searchIndex.Search(searchindex.SearchParams{
+        Text: "aa",
+        OutputSize: 10,
+        Matching: searchindex.Beginning,
+    })
+
+    fmt.Println(result[0])
+}
 ```
 
 Run tests:
