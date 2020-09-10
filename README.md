@@ -9,6 +9,8 @@
 - Exact search
 - Suitable for non-long strings
 
+More about in [article on Medium](https://medium.com/twelve-data/in-memory-text-search-index-for-quotes-on-go-5243adc62c26)
+
 ## How to use
 
 ```go
