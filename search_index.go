@@ -149,7 +149,7 @@ func (c SearchIndex) AppendData(data SearchList) {
 	}
 
 	// Sort
-	s.Slice(preprocessed, func(i, j int) bool {
+	s.SliceStable(preprocessed, func(i, j int) bool {
 		return c.sortFunc(i, j, preprocessed)
 	})
 
