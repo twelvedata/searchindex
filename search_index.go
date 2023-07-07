@@ -1,36 +1,37 @@
 package searchindex
 
 import (
-	"github.com/iancoleman/orderedmap"
-	"golang.org/x/text/runes"
-	"golang.org/x/text/transform"
-	"golang.org/x/text/unicode/norm"
 	"reflect"
 	"regexp"
 	s "sort"
 	"strings"
 	"unicode"
+
+	"github.com/iancoleman/orderedmap"
+	"golang.org/x/text/runes"
+	"golang.org/x/text/transform"
+	"golang.org/x/text/unicode/norm"
 )
 
-type SearchIndexInterface interface {
-	AppendData(data SearchList)
-	Search(params SearchParams) []SearchData
+type SearchIndexInterface[T any] interface {
+	AppendData(data SearchList[T])
+	Search(params SearchParams[T]) []T
 }
 
-type SearchIndex struct {
-	SearchIndexInterface
-	index          Index
+type SearchIndex[T any] struct {
+	SearchIndexInterface[T]
+	index          Index[T]
 	limit          int
 	preprocessFunc func(key string, stopWords map[string]bool) []string
-	sortFunc       func(i, j int, data interface{}) bool
+	sortFunc       func(i, j int, data SearchList[T]) bool
 	indexParts     bool
-	stopWords	   map[string]bool
+	stopWords      map[string]bool
 }
 
-type Index struct {
+type Index[T any] struct {
 	children *orderedmap.OrderedMap
 	key      string
-	data     SearchList
+	data     SearchList[T]
 }
 
 const (
@@ -38,23 +39,21 @@ const (
 	Beginning = iota
 )
 
-type SearchParams struct {
+type SearchParams[T any] struct {
 	Text        string
 	OutputSize  int
 	Matching    int
-	StartValues []SearchData
+	StartValues []T
 }
 
-type SearchData interface{}
-
-type SearchItem struct {
-	Key string
-	Data SearchData
+type SearchItem[T any] struct {
+	Key  string
+	Data T
 }
-type SearchList []*SearchItem
+type SearchList[T any] []*SearchItem[T]
 
-func defaultSortFunc(i, j int, data interface{}) bool {
-	return data.(SearchList)[i].Key < data.(SearchList)[j].Key
+func defaultSortFunc[T any](i, j int, data SearchList[T]) bool {
+	return data[i].Key < data[j].Key
 }
 
 func defaultPreprocessFunc(key string, stopWords map[string]bool) []string {
@@ -86,20 +85,20 @@ func defaultPreprocessFunc(key string, stopWords map[string]bool) []string {
 	return result
 }
 
-func NewSearchIndex(
-	data SearchList,
+func NewSearchIndex[T any](
+	data SearchList[T],
 	limit int,
-	sort func(i, j int, data interface{}) bool,
+	sort func(i, j int, data SearchList[T]) bool,
 	preprocess func(key string, stopWords map[string]bool) []string,
 	indexParts bool,
 	stopWords []string,
-) SearchIndexInterface {
+) SearchIndexInterface[T] {
 	preprocessFunc := preprocess
 	if preprocessFunc == nil {
 		preprocessFunc = defaultPreprocessFunc
 	}
 
-	sortFunc := defaultSortFunc
+	sortFunc := defaultSortFunc[T]
 	if sort != nil {
 		sortFunc = sort
 	}
@@ -114,27 +113,27 @@ func NewSearchIndex(
 	}
 
 	// Create and fill index with initial data
-	searchIndex := &SearchIndex{
-		index: Index{
+	searchIndex := &SearchIndex[T]{
+		index: Index[T]{
 			children: orderedmap.New(),
 		},
-		limit: limit,
+		limit:          limit,
 		preprocessFunc: preprocessFunc,
-		sortFunc: sortFunc,
-		indexParts: indexParts,
-		stopWords: sw,
+		sortFunc:       sortFunc,
+		indexParts:     indexParts,
+		stopWords:      sw,
 	}
 	searchIndex.AppendData(data)
 
 	return searchIndex
 }
 
-func (c SearchIndex) AppendData(data SearchList) {
+func (c SearchIndex[T]) AppendData(data SearchList[T]) {
 	// Copy original data
 	copied := copyOriginalData(data)
 
 	// Preprocess keys
-	var preprocessed SearchList
+	var preprocessed SearchList[T]
 	for _, item := range copied {
 		sortedParts := c.preprocessFunc(item.Key, c.stopWords)
 		for j, _ := range sortedParts {
@@ -158,21 +157,21 @@ func (c SearchIndex) AppendData(data SearchList) {
 	for _, item := range preprocessed {
 		current, ok := itemsByKey.Get(item.Key)
 		if !ok {
-			itemsByKey.Set(item.Key, SearchList{item})
+			itemsByKey.Set(item.Key, SearchList[T]{item})
 		} else {
-			current = append(current.(SearchList), item)
+			current = append(current.(SearchList[T]), item)
 			itemsByKey.Set(item.Key, current)
 		}
 	}
 
 	for _, key := range itemsByKey.Keys() {
 		item, _ := itemsByKey.Get(key)
-		addToIndex(&c.index, key, key, item.(SearchList))
+		addToIndex(&c.index, key, key, item.(SearchList[T]))
 	}
 }
 
-func copyOriginalData(data SearchList) SearchList {
-	copied := make(SearchList, len(data))
+func copyOriginalData[T any](data SearchList[T]) SearchList[T] {
+	copied := make(SearchList[T], len(data))
 	for i, _ := range data {
 		d := *data[i]
 		copied[i] = &d
@@ -180,7 +179,7 @@ func copyOriginalData(data SearchList) SearchList {
 	return copied
 }
 
-func addToIndex(index *Index, keyTail string, key string, data SearchList) {
+func addToIndex[T any](index *Index[T], keyTail string, key string, data SearchList[T]) {
 	if len(keyTail) == 0 {
 		index.key = key
 		index.data = data
@@ -190,15 +189,15 @@ func addToIndex(index *Index, keyTail string, key string, data SearchList) {
 	tail := keyTail[1:]
 	idx, ok := index.children.Get(first)
 	if !ok {
-		idx = &Index{
+		idx = &Index[T]{
 			children: orderedmap.New(),
 		}
 		index.children.Set(first, idx)
 	}
-	addToIndex(idx.(*Index), tail, key, data)
+	addToIndex(idx.(*Index[T]), tail, key, data)
 }
 
-func (c SearchIndex) Search(params SearchParams) []SearchData {
+func (c SearchIndex[T]) Search(params SearchParams[T]) []T {
 	outputSize := params.OutputSize
 	if outputSize == 0 || outputSize > c.limit || outputSize <= 0 {
 		outputSize = c.limit
@@ -215,32 +214,32 @@ func (c SearchIndex) Search(params SearchParams) []SearchData {
 		&c.index,
 		strings.Join(c.preprocessFunc(params.Text, c.stopWords), " "),
 		params.Matching,
-		outputSize - len(params.StartValues),
+		outputSize-len(params.StartValues),
 		start,
 	)
 
 	// And append result after start
-	result := make([]SearchData, len(params.StartValues))
+	result := make([]T, len(params.StartValues))
 	copy(result, params.StartValues)
 	result = append(result, data...)
 
 	return result
 }
 
-func (c SearchIndex) searchInIndex(index *Index, key string, matching int, outputSize int, start map[uintptr]bool) []SearchData {
+func (c SearchIndex[T]) searchInIndex(index *Index[T], key string, matching int, outputSize int, start map[uintptr]bool) []T {
 	if key == "" {
 		found := make(map[uintptr]bool)
-		searched :=  c.searchList(index, make(SearchList, 0), matching, outputSize, found, start)
+		searched := c.searchList(index, make(SearchList[T], 0), matching, outputSize, found, start)
 		return c.getData(searched)
 	}
 	idx, ok := index.children.Get(key[:1])
 	if !ok {
-		return make([]SearchData, 0)
+		return make([]T, 0)
 	}
-	return c.searchInIndex(idx.(*Index), key[1:], matching, outputSize, start)
+	return c.searchInIndex(idx.(*Index[T]), key[1:], matching, outputSize, start)
 }
 
-func (c SearchIndex) searchList(index *Index, items SearchList, matching int, outputSize int, found map[uintptr]bool, start map[uintptr]bool) SearchList {
+func (c SearchIndex[T]) searchList(index *Index[T], items SearchList[T], matching int, outputSize int, found map[uintptr]bool, start map[uintptr]bool) SearchList[T] {
 	if (outputSize > 0 && len(items) >= outputSize) || outputSize == 0 {
 		return items
 	}
@@ -265,14 +264,14 @@ func (c SearchIndex) searchList(index *Index, items SearchList, matching int, ou
 	if matching == Beginning {
 		for _, key := range index.children.Keys() {
 			idx, _ := index.children.Get(key)
-			items = c.searchList(idx.(*Index), items, matching, outputSize, found, start)
+			items = c.searchList(idx.(*Index[T]), items, matching, outputSize, found, start)
 		}
 	}
 	return items
 }
 
-func (c SearchIndex) getData(data SearchList) []SearchData {
-	result := make([]SearchData, len(data))
+func (c SearchIndex[T]) getData(data SearchList[T]) []T {
+	result := make([]T, len(data))
 	for i, item := range data {
 		result[i] = item.Data
 	}

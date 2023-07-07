@@ -29,12 +29,12 @@ type SymbolInfo struct {
 
 func main() {
     // Values for indexation
-    searchList := searchindex.SearchList{
-        &searchindex.SearchItem{
+    searchList := searchindex.SearchList[*SymbolInfo]{
+        &searchindex.SearchItem[*SymbolInfo]{
             Key: "AAPL",
             Data: &SymbolInfo{Symbol: "AAPL", Exchange: "NASDAQ", Instrument: "Apple Inc"},
         },
-        &searchindex.SearchItem{
+        &searchindex.SearchItem[*SymbolInfo]{
             Key: "AMZN",
             Data: &SymbolInfo{Symbol: "AMZN", Exchange: "NASDAQ", Instrument: "Amazon.com Inc"},
         },
@@ -44,7 +44,7 @@ func main() {
     searchIndex := searchindex.NewSearchIndex(searchList, 10, nil, nil, true, nil)
 
     // Search
-    result := searchIndex.Search(searchindex.SearchParams{
+    result := searchIndex.Search(searchindex.SearchParams[*SymbolInfo]{
         Text: "aa",
         OutputSize: 10,
         Matching: searchindex.Beginning,
