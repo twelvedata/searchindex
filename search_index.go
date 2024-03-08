@@ -24,7 +24,7 @@ type SearchIndex struct {
 	preprocessFunc func(key string, stopWords map[string]bool) []string
 	sortFunc       func(i, j int, data interface{}) bool
 	indexParts     bool
-	stopWords	   map[string]bool
+	stopWords      map[string]bool
 }
 
 type Index struct {
@@ -48,7 +48,7 @@ type SearchParams struct {
 type SearchData interface{}
 
 type SearchItem struct {
-	Key string
+	Key  string
 	Data SearchData
 }
 type SearchList []*SearchItem
@@ -60,7 +60,8 @@ func defaultSortFunc(i, j int, data interface{}) bool {
 func defaultPreprocessFunc(key string, stopWords map[string]bool) []string {
 	// Replace punctuation to spaces
 	rePunctuation := regexp.MustCompile("[`'\".,:;\\?!+\\-–*=<>_~@#№$%^&()|/\\\\]")
-	processed := rePunctuation.ReplaceAllString(key, " ")
+	// By default we remove special symbols, because we need searches BTCUSD and BTC-USD get BTC/USD key as result
+	processed := rePunctuation.ReplaceAllString(key, "")
 
 	// Replace double spaces to single space
 	reSpaces := regexp.MustCompile("\\s+")
@@ -118,11 +119,11 @@ func NewSearchIndex(
 		index: Index{
 			children: orderedmap.New(),
 		},
-		limit: limit,
+		limit:          limit,
 		preprocessFunc: preprocessFunc,
-		sortFunc: sortFunc,
-		indexParts: indexParts,
-		stopWords: sw,
+		sortFunc:       sortFunc,
+		indexParts:     indexParts,
+		stopWords:      sw,
 	}
 	searchIndex.AppendData(data)
 
@@ -215,7 +216,7 @@ func (c SearchIndex) Search(params SearchParams) []SearchData {
 		&c.index,
 		strings.Join(c.preprocessFunc(params.Text, c.stopWords), " "),
 		params.Matching,
-		outputSize - len(params.StartValues),
+		outputSize-len(params.StartValues),
 		start,
 	)
 
@@ -230,7 +231,7 @@ func (c SearchIndex) Search(params SearchParams) []SearchData {
 func (c SearchIndex) searchInIndex(index *Index, key string, matching int, outputSize int, start map[uintptr]bool) []SearchData {
 	if key == "" {
 		found := make(map[uintptr]bool)
-		searched :=  c.searchList(index, make(SearchList, 0), matching, outputSize, found, start)
+		searched := c.searchList(index, make(SearchList, 0), matching, outputSize, found, start)
 		return c.getData(searched)
 	}
 	idx, ok := index.children.Get(key[:1])

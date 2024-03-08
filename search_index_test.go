@@ -31,6 +31,7 @@ func TestSearchIndex(t *testing.T) {
 	b1 := SearchItem{Key: "B", Data: &SymbolInfo{Symbol: "B", Exchange: "2", Instrument: "Company Betta"}}
 	aa_1 := SearchItem{Key: "AA", Data: &SymbolInfo{Symbol: "AA", Instrument: "HA"}}
 	a2 := SearchItem{Key: "A2", Data: &SymbolInfo{Symbol: "A2"}}
+	gc_gd := SearchItem{Key: "GC/GD", Data: &SymbolInfo{Symbol: "GC/GD"}}
 
 	var searchList SearchList
 	searchList = append(searchList, &ag)
@@ -43,6 +44,7 @@ func TestSearchIndex(t *testing.T) {
 	searchList = append(searchList, &a_2)
 	searchList = append(searchList, &aa_1)
 	searchList = append(searchList, &a2)
+	searchList = append(searchList, &gc_gd)
 
 	type TestData struct {
 		Search   string
@@ -95,6 +97,20 @@ func TestSearchIndex(t *testing.T) {
 			PageSize: 2,
 			Sort:     sortFunc,
 		},
+		{
+			Search:   "GC-GD",
+			Result:   []SearchData{gc_gd.Data},
+			Limit:    100,
+			PageSize: 2,
+			Sort:     sortFunc,
+		},
+		{
+			Search:   "GCGD",
+			Result:   []SearchData{gc_gd.Data},
+			Limit:    100,
+			PageSize: 2,
+			Sort:     sortFunc,
+		},
 	}
 
 	for index, item := range data {
@@ -112,7 +128,7 @@ func TestSearchIndex(t *testing.T) {
 			for _, elem := range result {
 				actual += fmt.Sprintf("%v ", elem)
 			}
-			t.Errorf("Test %d failed (TestSearchIndex).\nExpected: %v\nActual:   %v", index + 1, expected, actual)
+			t.Errorf("Test %d failed (TestSearchIndex).\nExpected: %v\nActual:   %v", index+1, expected, actual)
 		}
 	}
 
