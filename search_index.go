@@ -1,15 +1,17 @@
 package searchindex
 
 import (
-	"github.com/iancoleman/orderedmap"
-	"golang.org/x/text/runes"
-	"golang.org/x/text/transform"
-	"golang.org/x/text/unicode/norm"
 	"reflect"
 	"regexp"
 	s "sort"
 	"strings"
+	"sync"
 	"unicode"
+
+	"github.com/iancoleman/orderedmap"
+	"golang.org/x/text/runes"
+	"golang.org/x/text/transform"
+	"golang.org/x/text/unicode/norm"
 )
 
 type SearchIndexInterface interface {
@@ -19,12 +21,13 @@ type SearchIndexInterface interface {
 
 type SearchIndex struct {
 	SearchIndexInterface
-	index          Index
-	limit          int
-	preprocessFunc func(key string, stopWords map[string]bool) []string
-	sortFunc       func(i, j int, data interface{}) bool
-	indexParts     bool
-	stopWords      map[string]bool
+	index              Index
+	limit              int
+	preprocessFunc     func(key string, stopWords map[string]bool) []string
+	sortFunc           func(i, j int, data interface{}) bool
+	indexParts         bool
+	stopWords          map[string]bool
+	appendThreadsCount uint
 }
 
 type Index struct {
@@ -94,6 +97,7 @@ func NewSearchIndex(
 	preprocess func(key string, stopWords map[string]bool) []string,
 	indexParts bool,
 	stopWords []string,
+	appendThreadsCount uint,
 ) SearchIndexInterface {
 	preprocessFunc := preprocess
 	if preprocessFunc == nil {
@@ -119,11 +123,12 @@ func NewSearchIndex(
 		index: Index{
 			children: orderedmap.New(),
 		},
-		limit:          limit,
-		preprocessFunc: preprocessFunc,
-		sortFunc:       sortFunc,
-		indexParts:     indexParts,
-		stopWords:      sw,
+		limit:              limit,
+		preprocessFunc:     preprocessFunc,
+		sortFunc:           sortFunc,
+		indexParts:         indexParts,
+		stopWords:          sw,
+		appendThreadsCount: appendThreadsCount,
 	}
 	searchIndex.AppendData(data)
 
@@ -131,22 +136,47 @@ func NewSearchIndex(
 }
 
 func (c SearchIndex) AppendData(data SearchList) {
+	threadsCount := c.appendThreadsCount
+	if threadsCount == 0 {
+		threadsCount = 1
+	}
+
 	// Copy original data
 	copied := copyOriginalData(data)
 
-	// Preprocess keys
-	var preprocessed SearchList
-	for _, item := range copied {
-		sortedParts := c.preprocessFunc(item.Key, c.stopWords)
-		for j, _ := range sortedParts {
-			d := *item
-			copiedItem := &d
-			copiedItem.Key = strings.Join(sortedParts[j:], " ")
-			preprocessed = append(preprocessed, copiedItem)
-			if !c.indexParts {
-				break
+	// Preprocess keys in parallel
+	var preprocessWg sync.WaitGroup
+	preprocessWorkChan := make(chan *SearchItem, len(copied))
+	preprocessResultChan := make(chan []*SearchItem, len(copied))
+	for i := 0; i < int(threadsCount); i++ {
+		preprocessWg.Add(1)
+		go func() {
+			defer preprocessWg.Done()
+			for item := range preprocessWorkChan {
+				var items []*SearchItem
+				sortedParts := c.preprocessFunc(item.Key, c.stopWords)
+				for j := range sortedParts {
+					d := *item
+					copiedItem := &d
+					copiedItem.Key = strings.Join(sortedParts[j:], " ")
+					items = append(items, copiedItem)
+					if !c.indexParts {
+						break
+					}
+				}
+				preprocessResultChan <- items
 			}
-		}
+		}()
+	}
+	for _, item := range copied {
+		preprocessWorkChan <- item
+	}
+	close(preprocessWorkChan)
+	preprocessWg.Wait()
+	close(preprocessResultChan)
+	var preprocessed SearchList
+	for items := range preprocessResultChan {
+		preprocessed = append(preprocessed, items...)
 	}
 
 	// Sort
