@@ -114,7 +114,7 @@ func TestSearchIndex(t *testing.T) {
 	}
 
 	for index, item := range data {
-		searchIndex := NewSearchIndex(searchList, item.Limit, item.Sort, nil, true, nil)
+		searchIndex := NewSearchIndex(searchList, item.Limit, item.Sort, nil, true, nil, 10)
 
 		result := searchIndex.Search(SearchParams{Text: item.Search, OutputSize: item.PageSize, Matching: Beginning})
 
